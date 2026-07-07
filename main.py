@@ -84,7 +84,140 @@ def build_weather_url(lat: float, lon: float):
     params += "&timezone=auto"
     return base_url + params
 
-@app.post("/register")
+# Response dictionaries for Swagger documentation (accessible at localhost:8000/docs)
+register_responses = {
+    200: {
+        "description": "User registered successfully",
+        "content": {
+            "application/json": {
+                "example": {
+                    "id": 1,
+                    "message": "User created successfully."
+                }
+            }
+        }
+    },
+    400: {
+        "description": "Username already exists"
+    }
+}
+
+login_responses = {
+    200: {
+        "description": "Login successful, returns JWT token",
+        "content": {
+            "application/json": {
+                "example": {
+                    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    "token_type": "bearer"
+                }
+            }
+        }
+    },
+    401: {
+        "description": "Invalid credentials (user not found or wrong password)"
+    }
+}
+
+add_city_responses = {
+    200: {
+        "description": "City added successfully",
+        "content": {
+            "application/json": {
+                "example": {
+                    "id": 1,
+                    "user_id": 1,
+                    "name": "São Paulo",
+                    "latitude": -23.5505,
+                    "longitude": -46.6333,
+                    "created_at": "2026-07-06T22:25:28"
+                }
+            }
+        }
+    },
+    401: {
+        "description": "Invalid or missing token"
+    },
+    422: {
+        "description": "Validation error - invalid latitude/longitude or missing fields"
+    }
+}
+
+get_cities_responses = {
+    200: {
+        "description": "List of all cities saved by the user",
+        "content": {
+            "application/json": {
+                "example": [
+                    {
+                        "id": 1,
+                        "user_id": 1,
+                        "name": "São Paulo",
+                        "latitude": -23.5505,
+                        "longitude": -46.6333,
+                        "created_at": "2026-07-06T22:25:28"
+                    }
+                ]
+            }
+        }
+    },
+    401: {
+        "description": "Invalid or missing token"
+    }
+}
+
+get_weather_responses = {
+    200: {
+        "description": "Current weather data for the city",
+        "content": {
+            "application/json": {
+                "example": {
+                    "city_name": "São Paulo",
+                    "latitude": -23.5505,
+                    "longitude": -46.6333,
+                    "current_temp": 25.5,
+                    "current_wind": 10.2,
+                    "today_max": 28.0,
+                    "today_min": 20.5,
+                    "snapshot_time": "Last updated: 2026-07-07T15:30"
+                }
+            }
+        }
+    },
+    401: {
+        "description": "Invalid or missing token"
+    },
+    403: {
+        "description": "City belongs to another user"
+    },
+    404: {
+        "description": "City not found"
+    }
+}
+
+delete_city_responses = {
+    200: {
+        "description": "City deleted successfully",
+        "content": {
+            "application/json": {
+                "example": {
+                    "message": "City has been successfully deleted."
+                }
+            }
+        }
+    },
+    401: {
+        "description": "Invalid or missing token"
+    },
+    404: {
+        "description": "City not found or doesn't belong to user"
+    }
+}
+
+@app.post("/register",
+          summary="Register a new user",
+          description="Create a new user account with username and password",
+          responses=register_responses)
 def register(user: UserAuth):
     # Get user inputs (request info)
     username = user.username
@@ -120,7 +253,10 @@ def register(user: UserAuth):
         }
         return new_dict
     
-@app.post("/login")
+@app.post("/login",
+          summary="Allows a user to log in",
+          description="Logs user into the application and gives him a JWT",
+          responses=login_responses)
 def login(user: UserAuth):
     # Get user inputs (request info)
     username = user.username
@@ -150,7 +286,10 @@ def login(user: UserAuth):
         # Return token to user to allow access
         return {"access_token": token, "token_type": "bearer"}
     
-@app.post("/cities")
+@app.post("/cities",
+          summary="Allows the user to register a city",
+          description="Allows the user to add a city to the database",
+          responses=add_city_responses)
 def add_city(city: City, user_id: int = Depends(verify_token)):
     # Get inputs (request info)
     name = city.name
@@ -184,7 +323,10 @@ def add_city(city: City, user_id: int = Depends(verify_token)):
         # Return the Pydantic model with all data/info
         return response
     
-@app.get("/cities")
+@app.get("/cities",
+         summary="Returns a list of all cities registered by a user",
+         description="Returns a list of all cities registered by a user in the database",
+         responses=get_cities_responses)
 def get_city(user_id: int = Depends(verify_token)):
     # Connect to database
     with engine.connect() as conn:
@@ -215,7 +357,10 @@ def get_city(user_id: int = Depends(verify_token)):
         # Return a registered cities list registered by the user
         return registered_cities
     
-@app.get("/cities/{city_id}/weather")
+@app.get("/cities/{city_id}/weather",
+         summary="Show the current weather data of the selected city",
+         description="Returns a list of current weather data about the city of id 'city_id' ",
+         responses=get_weather_responses)
 def get_city_weather(city_id: int, user_id: int = Depends(verify_token)):
     # Connect to database
     with engine.connect() as conn:
@@ -266,7 +411,10 @@ def get_city_weather(city_id: int, user_id: int = Depends(verify_token)):
             # If an error occurs, show error message
             return {"message": "An error occurred with the request. Please try again or review the documentation."}
         
-@app.delete("/cities/{city_id}")
+@app.delete("/cities/{city_id}",
+            summary="Deletes a user-registered city",
+            description="Allows the user to delete a registered city from the database",
+            responses=delete_city_responses)
 def delete_city(city_id: int, user_id: int = Depends(verify_token)):
     # Connect to database
     with engine.connect() as conn:
