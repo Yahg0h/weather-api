@@ -40,6 +40,7 @@ def verify_jwt_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("user_id")
+        return user_id
     except jwt.ExpiredSignatureError:
         return None
     except jwt.InvalidTokenError:
@@ -61,6 +62,13 @@ class UserAuth(BaseModel):
     password: str = Field(min_length=12, max_length=60)
 
 class City(BaseModel):
+    name: str = Field(max_length=50)
+    latitude: float = Field(ge=-90, le=90) # Latitude (between -90° and 90°)
+    longitude: float = Field(ge=-180, le=180) # Longitude (between -180° and 180°)
+
+class CityResponse(BaseModel):
+    id: int
+    user_id: int
     name: str = Field(max_length=50)
     latitude: float = Field(ge=-90, le=90) # Latitude (between -90° and 90°)
     longitude: float = Field(ge=-180, le=180) # Longitude (between -180° and 180°)
@@ -136,3 +144,36 @@ def login(user: UserAuth):
         # Return token to user to allow access
         return {"access_token": token, "token_type": "bearer"}
     
+@app.post("/cities")
+def add_city(city: City, user_id: int = Depends(verify_token)):
+    # Get inputs (request info)
+    name = city.name
+    latitude = city.latitude
+    longitude = city.longitude
+
+    # Connect to database
+    with engine.connect() as conn:
+        # INSERT city info and commit
+        conn.execute(text("INSERT INTO cities (user_id, name, latitude, longitude) VALUES (:user_id, :name, :latitude, :longitude)"),
+                     {"user_id": user_id, "name":name, "latitude": latitude, "longitude": longitude})
+        conn.commit()
+
+        # Get id from the recently added city
+        query = conn.execute(text("SELECT * FROM cities WHERE id = LAST_INSERT_ID()"))
+        results = query.fetchone()
+
+        # Convert row to dict
+        results_dict = dict(results._mapping)
+
+        # Reorganize the new dict with all info from recently added city, and return it
+        city_dict = {
+            "id": results_dict["id"],
+            "user_id": results_dict["user_id"],
+            "name": results_dict["name"],
+            "latitude": results_dict["latitude"],
+            "longitude": results_dict["longitude"],
+            "created_at": results_dict["created_at"]
+        }
+        response = CityResponse(**city_dict) # Add data/info to the Pydantic model
+        # Return the Pydantic model with all data/info
+        return response
