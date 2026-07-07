@@ -54,3 +54,18 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         raise HTTPException(status_code=401, detail="Invalid token.")
     
     return user_id
+
+# classes/Pydantic Models to use in the routes
+class UserAuth(BaseModel):
+    username: str = Field(min_length=4, max_length=15)
+    password: str = Field(min_length=12, max_length=60)
+
+class City(BaseModel):
+    name: str = Field(max_length=50)
+    latitude: float = Field(ge=-90, le=90) # Latitude (between -90° and 90°)
+    longitude: float = Field(ge=-180, le=180) # Longitude (between -180° and 180°)
+    created_at: datetime
+
+# Function for Open-Meteo API climate searching
+def build_weather_url(lat: float, lon: float):
+    return f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
