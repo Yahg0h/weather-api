@@ -177,3 +177,36 @@ def add_city(city: City, user_id: int = Depends(verify_token)):
         response = CityResponse(**city_dict) # Add data/info to the Pydantic model
         # Return the Pydantic model with all data/info
         return response
+    
+@app.get("/cities")
+def get_city(user_id: int = Depends(verify_token)):
+    # Connect to database
+    with engine.connect() as conn:
+        # Get all cities the user has registered
+        query = conn.execute(text("SELECT * FROM cities WHERE user_id = :user_id"), {"user_id": user_id})
+        results = query.fetchall()
+
+        # Create a empty list to store all cities registered
+        registered_cities = []
+
+        # For each registered city
+        for city_row in results:
+            # Convert them from row to dict
+            results_dict = dict(city_row._mapping)
+
+            # Put all city data/info into a new dict
+            city_dict = {
+                "id": results_dict["id"],
+                "user_id": results_dict["user_id"],
+                "name": results_dict["name"],
+                "latitude": results_dict["latitude"],
+                "longitude": results_dict["longitude"],
+                "created_at": results_dict["created_at"]
+            }
+            # Add the city data dict to the city Pydantic Model
+            registered_cities.append(CityResponse(**city_dict))
+        
+        # Return a registered cities list registered by the user
+        return registered_cities
+
+            
