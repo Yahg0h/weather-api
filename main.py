@@ -265,3 +265,22 @@ def get_city_weather(city_id: int, user_id: int = Depends(verify_token)):
         else:
             # If an error occurs, show error message
             return {"message": "An error occurred with the request. Please try again or review the documentation."}
+        
+@app.delete("/cities/{city_id}")
+def delete_city(city_id: int, user_id: int = Depends(verify_token)):
+    # Connect to database
+    with engine.connect() as conn:
+        # Search for the city of id "city_id"
+        query = conn.execute(text("SELECT * FROM cities WHERE id = :id AND user_id = :user_id"), {"id": city_id, "user_id": user_id})
+        results = query.fetchone()
+
+        # Check if the city searched exists
+        if results is None:
+            raise HTTPException(status_code=404, detail="City not found or doesn't exist.")
+        
+        # If all valid, delete the city from the database
+        conn.execute(text("DELETE FROM cities WHERE id = :id AND user_id = :user_id"), {"id": city_id, "user_id": user_id})
+        conn.commit()
+
+        # Return a success message to the user
+        return {"message": "City has been successfully deleted."}
