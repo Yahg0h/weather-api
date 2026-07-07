@@ -26,7 +26,7 @@ ALGORITHM = "HS256"
 # Engine will allow to CRUD info to and from the MySQL database with SQLAlchemy instead of mysql.connector
 engine = create_engine(f"mysql+pymysql://{db_user}:{db_password}@{db_host}/{db_name}")
 
-#JWT Creation
+# JWT Creation
 def create_jwt_token(user_id: int):
     payload = {
         "user_id": user_id,
@@ -74,9 +74,15 @@ class CityResponse(BaseModel):
     longitude: float = Field(ge=-180, le=180) # Longitude (between -180° and 180°)
     created_at: datetime
 
-# Function for Open-Meteo API climate searching
+# Function for Open-Meteo API climate searching (base url is expanded by params used later)
 def build_weather_url(lat: float, lon: float):
-    return f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+    base_url = "https://api.open-meteo.com/v1/forecast"
+    params = f"?latitude={lat}&longitude={lon}"
+    params += "&current=temperature_2m,wind_speed_10m"
+    params += "&hourly=temperature_2m"
+    params += "&daily=temperature_2m_max,temperature_2m_min"
+    params += "&timezone=auto"
+    return base_url + params
 
 @app.post("/register")
 def register(user: UserAuth):
@@ -208,5 +214,54 @@ def get_city(user_id: int = Depends(verify_token)):
         
         # Return a registered cities list registered by the user
         return registered_cities
+    
+@app.get("/cities/{city_id}/weather")
+def get_city_weather(city_id: int, user_id: int = Depends(verify_token)):
+    # Connect to database
+    with engine.connect() as conn:
+        # Check if the city exists in the database
+        query = conn.execute(text("SELECT * FROM cities WHERE id = :id"), {"id": city_id})
+        results = query.fetchone()
 
-            
+        # Check if the city exists
+        if results is None:
+            raise HTTPException(status_code=404, detail="City not found or doesn't exist.")
+
+        # Convert existing_city from row to dict
+        existing_city = dict(results._mapping)
+        
+        # Check if the existing city was registered by current logged in user (converted to dict to make comparison)
+        if existing_city['user_id'] != user_id:
+            raise HTTPException(status_code=403, detail="Access forbidden. You aren't allowed to view this information.")
+        
+        # If it exists and it was registered by the current logged user, build Open-Meteo url to make a request
+        om_url = build_weather_url(existing_city['latitude'], existing_city['longitude'])
+
+        # Make the request to Open-Meteo API
+        weather_request = requests.get(om_url)
+
+        # Check if the request was successful
+        if weather_request.status_code == 200:
+            # Convert json to dict
+            weather_data = weather_request.json()
+
+            # Get all important data/info from the city weather_data, SQL query (existing_city)
+            city_weather_data = {
+                # Basic city info
+                "city_name": existing_city["name"],
+                "latitude": existing_city["latitude"],
+                "longitude": existing_city["longitude"],
+                # Current Weather
+                "current_temp": weather_data["current"]["temperature_2m"],
+                "current_wind": weather_data["current"]["wind_speed_10m"],
+                # Today's highest and lowest temperature
+                "today_max": weather_data["daily"]["temperature_2m_max"][0],
+                "today_min": weather_data["daily"]["temperature_2m_min"][0],
+                # Time weather snapshot was taken
+                "snapshot_time": f"Last updated: {weather_data['current']['time']}"
+            }
+            # Return city weather data to user
+            return city_weather_data
+        else:
+            # If an error occurs, show error message
+            return {"message": "An error occurred with the request. Please try again or review the documentation."}
