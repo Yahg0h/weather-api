@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+pydantic
+passlib
+argon2-cffi
+PyJWT
+python-dotenv
+requests
