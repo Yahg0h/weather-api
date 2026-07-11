@@ -46,6 +46,7 @@ Weather-API/
 ├── schema.sql       # Versioned database schema
 ├── .env             # Environment variables (not committed)
 ├── .gitignore
+├── requirements.txt
 └── README.md
 ```
 
@@ -86,6 +87,15 @@ CREATE TABLE cities (
 - MySQL (via XAMPP, WAMP, or standalone)
 - phpMyAdmin (optional, for database management)
 
+## Requirements
+
+See `requirements.txt` for all dependencies. Key packages:
+- **FastAPI** — Web framework
+- **SQLAlchemy** — Database queries
+- **Pydantic** — Input validation
+- **PyJWT** — Authentication tokens
+- **Argon2** — Password hashing
+
 ### Steps
 
 **1. Clone the repository:**
@@ -107,7 +117,7 @@ source venv/bin/activate
 
 **3. Install dependencies:**
 ```bash
-pip install fastapi uvicorn sqlalchemy pymysql pydantic passlib argon2-cffi PyJWT python-dotenv requests
+pip install -r requirements.txt
 ```
 
 **4. Create the database:**
